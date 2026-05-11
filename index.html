@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pocket Option Signal Analyzer</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════════════════════ HEADER ═══════════════════════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        <h1>PO Signal Analyzer</h1>
+        <p>WebSocket · AI · Self-Learning</p>
+      </div>
+    </div>
+
+    <div class="hdr-divider"></div>
+
+    <div class="hdr-controls">
+      <!-- Asset -->
+      <select id="assetSelect" title="Asset">
+        <optgroup label="Forex OTC">
+          <option value="EURUSD_otc" selected>EUR/USD (OTC)</option>
+          <option value="GBPUSD_otc">GBP/USD (OTC)</option>
+          <option value="USDJPY_otc">USD/JPY (OTC)</option>
+          <option value="AUDUSD_otc">AUD/USD (OTC)</option>
+          <option value="USDCAD_otc">USD/CAD (OTC)</option>
+          <option value="USDCHF_otc">USD/CHF (OTC)</option>
+          <option value="EURJPY_otc">EUR/JPY (OTC)</option>
+          <option value="GBPJPY_otc">GBP/JPY (OTC)</option>
+        </optgroup>
+        <optgroup label="Forex Live">
+          <option value="EURUSD">EUR/USD</option>
+          <option value="GBPUSD">GBP/USD</option>
+          <option value="USDJPY">USD/JPY</option>
+        </optgroup>
+        <optgroup label="Crypto">
+          <option value="BTCUSD">BTC/USD</option>
+          <option value="#AAPL_otc">Apple (OTC)</option>
+          <option value="#TSLA_otc">Tesla (OTC)</option>
+        </optgroup>
+      </select>
+
+      <!-- Chart period -->
+      <select id="periodSelect" title="Chart Timeframe">
+        <option value="5">5s</option>
+        <option value="10">10s</option>
+        <option value="15">15s</option>
+        <option value="30">30s</option>
+        <option value="60" selected>1m</option>
+        <option value="120">2m</option>
+        <option value="300">5m</option>
+        <option value="900">15m</option>
+        <option value="3600">1h</option>
+      </select>
+
+      <!-- Trade duration -->
+      <select id="durationSelect" title="Trade Duration">
+        <option value="30">30s trade</option>
+        <option value="60" selected>1m trade</option>
+        <option value="120">2m trade</option>
+        <option value="300">5m trade</option>
+        <option value="900">15m trade</option>
+        <option value="3600">1h trade</option>
+      </select>
+
+      <span class="demo-badge" id="demoBadge">DEMO</span>
+    </div>
+
+    <div class="hdr-right">
+      <!-- Status -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="status-dot connecting" id="statusDot"></div>
+        <span id="statusLabel" style="font-size:11px;color:var(--txt2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Demo mode</span>
+      </div>
+      <!-- Connect -->
+      <button class="btn btn-primary btn-sm" id="openSetup" title="Connect to Pocket Option">⚡ Connect Live</button>
+    </div>
+  </header>
+
+  <!-- ══════════════════════ MAIN CONTENT ══════════════════ -->
+  <div class="main">
+
+    <!-- ─────── LEFT: Chart area ─────── -->
+    <section class="chart-area">
+
+      <!-- Chart header -->
+      <div class="chart-header">
+        <span class="asset-name" id="assetLabel">EUR/USD (OTC)</span>
+        <span class="asset-price" id="assetPrice">—</span>
+        <span class="price-change up" id="priceChange">+0.00000</span>
+
+        <!-- TF quick tabs -->
+        <div class="tf-tabs">
+          <span class="tf-tab" data-period="30">30s</span>
+          <span class="tf-tab active" data-period="60">1m</span>
+          <span class="tf-tab" data-period="300">5m</span>
+          <span class="tf-tab" data-period="900">15m</span>
+          <span class="tf-tab" data-period="3600">1H</span>
+        </div>
+      </div>
+
+      <!-- Main chart -->
+      <div class="chart-wrap" style="position:relative">
+        <canvas id="mainChart"></canvas>
+        <div class="chart-nodata" id="chartNoData">
+          <div class="spinner"></div>
+          <span>Loading candle data…</span>
+        </div>
+      </div>
+
+      <!-- Volume -->
+      <div class="vol-wrap"><canvas id="volChart"></canvas></div>
+
+      <!-- Signal history table -->
+      <div class="signal-history">
+        <div class="sh-header">
+          <span>Signal History</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" id="wsLogBtn" title="Show raw WS messages">WS Log</button>
+            <button class="btn btn-ghost btn-sm" id="debugToggle">Debug</button>
+          </div>
+        </div>
+        <div id="debugPane" style="display:none;max-height:120px;overflow-y:auto;background:var(--bg0)" id="debugLog2">
+          <div id="debugLog"></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Asset</th><th>Dir</th><th>Entry</th>
+              <th>Win%</th><th>Conf%</th><th>Duration</th><th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="historyTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─────── RIGHT: Sidebar ─────── -->
+    <aside class="sidebar">
+
+      <!-- ── CURRENT SIGNAL ── -->
+      <div class="signal-card">
+        <div class="card-title">Current Signal</div>
+        <div class="sig-badge">
+          <div class="sig-dir neutral" id="sigDir">
+            <span class="sig-wait">Waiting for signal…</span>
+          </div>
+        </div>
+
+        <!-- Probability Gauge -->
+        <div class="gauge-wrap">
+          <canvas id="gaugeCanvas" width="140" height="140"></canvas>
+          <span class="gauge-label">Win Probability</span>
+        </div>
+
+        <!-- Signal details -->
+        <div class="sig-grid">
+          <div class="sig-item">
+            <div class="sig-item-label">Asset</div>
+            <div class="sig-item-value" id="sigAsset">—</div>
+          </div>
+          <div class="sig-item">
+            <div class="sig-item-label">Entry Price</div>
+            <div class="sig-item-value green" id="sigPrice">—</div>
+          </div>
+          <div class="sig-item">
+            <div class="sig-item-label">Win Probability</div>
+            <div class="sig-item-value green" id="sigProb">—</div>
+          </div>
+          <div class="sig-item">
+            <div class="sig-item-label">Confidence</div>
+            <div class="sig-item-value" id="sigConf">—</div>
+          </div>
+          <div class="sig-item">
+            <div class="sig-item-label">Duration</div>
+            <div class="sig-item-value" id="sigDur">—</div>
+          </div>
+        </div>
+
+        <div class="sig-note" id="sigNote"></div>
+      </div>
+
+      <!-- ── FUTURE SIGNALS ── -->
+      <div class="card">
+        <div class="card-title">Future Signals (Multi-Timeframe)</div>
+        <div class="future-grid" id="futureGrid">
+          <span style="color:var(--txt3);font-size:11px">Building analysis…</span>
+        </div>
+      </div>
+
+      <!-- ── INDICATORS ── -->
+      <div class="card">
+        <div class="card-title">Indicator Analysis</div>
+        <div class="ind-list" id="indList">
+          <span style="color:var(--txt3);font-size:11px">Waiting for signal…</span>
+        </div>
+      </div>
+
+      <!-- ── PATTERNS ── -->
+      <div class="card">
+        <div class="card-title">Candlestick Patterns</div>
+        <div class="patterns-wrap" id="patternsWrap">
+          <span style="color:var(--txt3);font-size:11px">No patterns yet</span>
+        </div>
+      </div>
+
+      <!-- ── ML STATS ── -->
+      <div class="card">
+        <div class="card-title">
+          AI Learning Stats
+          <button class="btn btn-ghost btn-sm" id="resetMLBtn"
+            style="float:right;margin-top:-4px;font-size:10px">Reset</button>
+        </div>
+        <div class="ml-stats">
+          <div class="ml-stat">
+            <div class="ml-stat-val" id="mlTotal">0</div>
+            <div class="ml-stat-lbl">Trades</div>
+          </div>
+          <div class="ml-stat">
+            <div class="ml-stat-val" id="mlWins">0</div>
+            <div class="ml-stat-lbl">Wins</div>
+          </div>
+          <div class="ml-stat">
+            <div class="ml-stat-val" id="mlPending">0</div>
+            <div class="ml-stat-lbl">Pending</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;color:var(--txt2)">Accuracy (last 100)</span>
+          <span style="font-size:13px;font-weight:700;color:var(--accent)" id="mlAccuracy">—</span>
+        </div>
+        <div class="ml-accuracy-bar">
+          <div class="ml-accuracy-fill" id="mlAccuracyFill" style="width:0%"></div>
+        </div>
+
+        <div style="margin-top:10px;font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Indicator Weights</div>
+        <div class="weights-grid" id="weightsGrid"></div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- ═══════════════════════ STATUS BAR ═══════════════════ -->
+  <footer>
+    <div class="sb-item">
+      <div class="status-dot connecting" id="sbDot"></div>
+      <span id="sbStatus">Demo Mode</span>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-item">⚡ Pocket Option WebSocket Analyzer</div>
+    <div class="sb-divider"></div>
+    <div class="sb-item" id="sbAsset">EUR/USD OTC · 1m chart</div>
+    <div class="sb-right">
+      <span>v2.0 · AI Self-Learning</span>
+      <div class="sb-divider"></div>
+      <span>m.pocketoption.com</span>
+    </div>
+  </footer>
+
+</div><!-- /.app -->
+
+
+<!-- ═══════════════════ SETUP MODAL ═══════════════════════ -->
+<div class="modal-overlay hidden" id="setupModal">
+  <div class="modal">
+    <h2>⚡ Connect to Pocket Option</h2>
+    <p>
+      Enter your Pocket Option session credentials to receive <strong>live WebSocket data</strong>
+      from <code>m.pocketoption.com</code>. Without credentials, the analyzer runs in <strong>demo/simulation mode</strong>.
+    </p>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Open <strong>m.pocketoption.com</strong> and log in to your account.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          Open DevTools (<code>F12</code>), go to <strong>Application → Cookies → pocketoption.com</strong>.
+          Copy the value of <code>PHPSESSID</code> or <code>ssid</code>.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          Alternatively: in the <strong>Network</strong> tab, filter by <code>WS</code>, click the
+          WebSocket connection, and look for the <code>auth</code> message to find the session token.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">Paste below and click <strong>Connect</strong>.</div>
+      </div>
+    </div>
+
+    <div class="settings-form">
+      <div class="field">
+        <label>Session ID (PHPSESSID / ssid)</label>
+        <input type="password" id="sessionInput" placeholder="Paste session cookie value here…" autocomplete="off"/>
+        <div class="hint">This is stored locally and never transmitted except to Pocket Option's own WebSocket.</div>
+      </div>
+      <div class="field">
+        <label>User ID (optional – found in auth WS frame)</label>
+        <input type="number" id="uidInput" placeholder="0" />
+      </div>
+      <div class="field">
+        <div class="toggle-row">
+          <label>Use Demo Account</label>
+          <label class="toggle">
+            <input type="checkbox" id="demoToggle" checked/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="hint">Demo = isDemo:1 — no real money. Disable for live account data.</div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="closeModal">Cancel</button>
+      <button class="btn btn-primary" id="connectBtn">⚡ Connect Live</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════════════ SCRIPTS ═══════════════════════════ -->
+<script src="js/pocket-ws.js"></script>
+<script src="js/data-store.js"></script>
+<script src="js/ta.js"></script>
+<script src="js/ml-engine.js"></script>
+<script src="js/signal-gen.js"></script>
+<script src="js/chart.js"></script>
+<script src="js/simulator.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
